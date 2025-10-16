@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { toast } from 'sonner';
 import TitleSlide from './slides/TitleSlide';
 import IntroductionSlide from './slides/IntroductionSlide';
 import BackgroundSlide from './slides/BackgroundSlide';
@@ -25,6 +28,7 @@ const slides = [
 
 const Presentation = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -47,13 +51,71 @@ const Presentation = () => {
     setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
   };
 
+  const exportToPDF = async () => {
+    setIsExporting(true);
+    toast.info('Generating PDF... This may take a moment.');
+    
+    try {
+      const pdf = new jsPDF('landscape', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      for (let i = 0; i < slides.length; i++) {
+        setCurrentSlide(i);
+        // Wait for slide to render
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const slideElement = document.querySelector('.slide-content') as HTMLElement;
+        if (slideElement) {
+          const canvas = await html2canvas(slideElement, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = pageWidth;
+          const imgHeight = (canvas.height * pageWidth) / canvas.width;
+          
+          if (i > 0) {
+            pdf.addPage();
+          }
+          
+          pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+        }
+      }
+      
+      pdf.save('Corporatization-of-Agriculture-Presentation.pdf');
+      toast.success('PDF downloaded successfully!');
+      setCurrentSlide(0);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const CurrentSlideComponent = slides[currentSlide];
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-gradient-subtle">
       {/* Slide Content */}
-      <div className="w-full h-full">
+      <div className="w-full h-full slide-content">
         <CurrentSlideComponent />
+      </div>
+
+      {/* Download PDF Button */}
+      <div className="absolute top-8 right-8 z-50">
+        <Button
+          onClick={exportToPDF}
+          disabled={isExporting}
+          className="bg-white/90 hover:bg-white border-primary/20 shadow-soft backdrop-blur-sm"
+          variant="outline"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          {isExporting ? 'Generating PDF...' : 'Download PDF'}
+        </Button>
       </div>
 
       {/* Navigation Controls */}
